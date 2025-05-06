@@ -12,9 +12,9 @@ pipeline {
             }
         }
         
-        stage('Jenkins1 Build'){
+        stage('Jenkins1 Build'){ // 5o ejercicio de Jenkins1, crear una etapa build (no necesaria por ser python)
             steps {
-                echo 'Estoy construyendo' // 5o ejercicio de Jenkins1, crear una etapa build (no necesaria por ser python)
+                echo 'Estoy construyendo' 
             }
         }
         
