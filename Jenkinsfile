@@ -20,9 +20,8 @@ pipeline {
         
         stage('Pruebas') {
             parallel { // 3er ejecicio de Jenkins2, hacer paralelas las etapas de pruebas unitarias y de servicio   
-                stage('Jenkins2 Unit'){
+                stage('Jenkins2 Unit'){ // 1er ejercicio de Jenkins2, crear una etapa con la ejecucion de pruebas unitarias
                     steps {
-                        // 1er ejercicio de Jenkins2, crear una etapa con la ejecucion de pruebas unitarias
                         bat '''
                             set PYTHONPATH=.
                             py -m pytest --junitxml=result-unit.xml test\\unit
@@ -30,9 +29,8 @@ pipeline {
                     }
                 }
                 
-                 stage('Jenkins2 Service'){
+                 stage('Jenkins2 Service'){ // 2o ejercicio de Jenkins2, crear una etapa con la ejecución de pruebas de servicio
                     steps {
-                        // 2o ejercicio de Jenkins2, crear una etapa con la ejecución de pruebas de servicio
                         catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
                            bat '''
                                 curl -sO https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.0/wiremock-standalone-3.13.0.jar
@@ -48,8 +46,8 @@ pipeline {
             }
         }
         
-        stage ('Resultados') {
-            steps { // 3er ejercicio de Jenkins2, crear una última etapa para conectar con JUnit
+        stage ('Resultados') { // 3er ejercicio de Jenkins2, crear una última etapa para conectar con JUnit
+            steps {
                 junit 'result-*.xml'
             }
         }
