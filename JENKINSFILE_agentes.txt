@@ -1,0 +1,103 @@
+pipeline {
+    agent none
+
+    stages {
+        stage('Jenkins1') {
+            agent { label 'git && win'} // Seleccionamos un agente con git y Windows
+            steps {
+                deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
+                echo 'Primer echo' // 1er ejercicio de Jenkins 1, hacer un echo
+                git 'https://github.com/JesCaAg/helloworld.git' // 2o ejercicio de Jenkins 1, traer el repo de codigo
+                bat 'dir' // 3o ejercicio de Jenkins 1, hacer un dir para verificar la descarga del repositorio
+                echo WORKSPACE // 4o ejercicio de Jenkins 1, verificar el workspace
+                bat '''
+                    whoami
+                    hostname
+                '''
+                stash includes: '**/*', name: 'repositorio' // Guardamos el repositorio para usarlo en otras etapas
+            }
+        }
+        
+        stage('Jenkins1 Build'){ // 5o ejercicio de Jenkins1, crear una etapa build (no necesaria por ser python)
+            agent { label 'build && win'} // Seleccionados un agente de construccion y Windows
+            steps {
+                deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
+                //Aquí haríamos unstash si fuera necesario, pero al ser Python no hay etapa build como tal
+                echo 'Estoy construyendo'
+                echo WORKSPACE
+                bat '''
+                    whoami
+                    hostname
+                '''
+            }
+        }
+        
+        stage('Pruebas') {
+            parallel { // 3er ejecicio de Jenkins2, hacer paralelas las etapas de pruebas unitarias y de servicio   
+                stage('Jenkins2 Unit'){ // 1er ejercicio de Jenkins2, crear una etapa con la ejecucion de pruebas unitarias
+                    agent { label 'testunit && win'} // Seleccionamos un agente dedicado a tests unitarios con Windows
+                    steps {
+                        deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
+                        unstash 'repositorio' // Retomamos el repositorio que descargamos en la etapa Jenkins1
+                        bat '''
+                            set PYTHONPATH=.
+                            py -m pytest --junitxml=result-unit.xml test\\unit
+                        '''
+                        echo WORKSPACE
+                        bat '''
+                            whoami
+                            hostname
+                        '''
+                        stash includes: 'result-unit.xml', name: 'resunit' // Guardamos los resultados unitarios para utilizarlos despues
+                    }
+                }
+                
+                 stage('Jenkins2 Service'){ // 2o ejercicio de Jenkins2, crear una etapa con la ejecución de pruebas de servicio
+                    agent { label 'testrest && win'} // Utilizamos un agente dedicado a test rest con Windows
+                    steps {
+                        deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
+                        unstash 'repositorio' // Retomamos el repositorio que descargamos en la primera etapa
+                        catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
+                            bat '''
+                                curl -sO https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.0/wiremock-standalone-3.13.0.jar
+                                set FLASK_APP=app\\api.py
+                                start py -m flask run
+                                start java -jar wiremock-standalone-3.13.0.jar --port 9090 --root-dir test\\wiremock
+                                set PYTHONPATH=.
+                                py -m pytest --junitxml=result-rest.xml test\\rest
+                            '''
+                            stash includes: 'result-rest.xml', name: 'resrest' // Guardamos los resultados rest para utilizarlos despues
+                        }
+                        echo WORKSPACE
+                        bat '''
+                            whoami
+                            hostname
+                        '''
+                    }
+                 }
+            }
+        }
+        
+        stage ('Resultados') { // 3er ejercicio de Jenkins2, crear una última etapa para conectar con JUnit
+            agent { label 'result && win'} // Utilizamos un agente dedicado a resultados con so Windows
+            steps {
+                deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
+                unstash 'resunit' // Retomamos los resultados de las pruebas unitarias
+                unstash 'resrest' // Retomamos los resultados de las pruebas de servicio
+                junit 'result-*.xml'
+                echo WORKSPACE
+                bat '''
+                    whoami
+                    hostname
+                '''
+            }
+        }
+    }
+    post { // Una vez finalizadas las etapas, con cualquier resultado, borramos los workspaces para tenerlos limpios para otras ejecuciones
+        always {
+            node('ag1') {cleanWs()}
+            node('ag2') {cleanWs()}
+            node('pr')	{cleanWs()}
+        }
+    }
+}
