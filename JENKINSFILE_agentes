@@ -63,6 +63,25 @@ pipeline {
                                 set FLASK_APP=app\\api.py
                                 start py -m flask run
                                 start java -jar wiremock-standalone-3.13.0.jar --port 9090 --root-dir test\\wiremock
+                                '''
+                            script {
+                                def url_flask = 'http://127.0.0.1:5000'
+                                def url_wiremock = 'http://127.0.0.1:9090'
+                                def intento = 1
+                                def intentos_max = 10
+                                while ( intento <= intentos_max) {
+                                    try {
+                                        bat(script: "curl -s -o nul ${url_flask}")
+                                        bat(script: "curl -s -o nul ${url_wiremock}")
+                                        intento = 11
+                                    }
+                                    catch (e) {
+                                        sleep(time: 10, unit: 'SECONDS')
+                                        intento++
+                                    }
+                                }
+                            }
+                            bat '''
                                 set PYTHONPATH=.
                                 py -m pytest --junitxml=result-rest.xml test\\rest
                             '''
