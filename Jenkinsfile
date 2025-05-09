@@ -6,7 +6,7 @@ pipeline {
             steps {
                 deleteDir() // Eliminamos lo que hubiera en el workspace
                 echo 'Primer echo' // 1er ejercicio de Jenkins 1, hacer un echo
-                git 'https://github.com/JesCaAg/helloworld.git' // 2o ejercicio de Jenkins 1, traer el repo de codigo
+                git branch: 'feature_fix_racecond', url: 'https://github.com/JesCaAg/helloworld.git' // 2o ejercicio de Jenkins 1, traer el repo de codigo
                 bat 'dir' // 3o ejercicio de Jenkins 1, hacer un dir para verificar la descarga del repositorio
                 echo WORKSPACE // 4o ejercicio de Jenkins 1, verificar el workspace
             }
@@ -36,7 +36,26 @@ pipeline {
                                 curl -sO https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.0/wiremock-standalone-3.13.0.jar
                                 set FLASK_APP=app\\api.py
                                 start py -m flask run
-                                start java -jar wiremock-standalone-3.13.0.jar --port 9090 --root-dir test\\wiremock
+                                start java -jar wiremock-standalone-3.13.0.jar --port 9090 --root-dir test\\wiremock  
+                            '''
+                            script {
+                                def url_flask = 'http://127.0.0.1:5000'
+                                def url_wiremock = 'http://127.0.0.1:9090'
+                                def intento = 1
+                                def intentos_max = 10
+                                while ( intento <= intentos_max) {
+                                    try {
+                                        bat(script: "curl -s -o nul ${url_flask}")
+                                        bat(script: "curl -s -o nul ${url_wiremock}")
+                                        intento = 11
+                                    }
+                                    catch (e) {
+                                        sleep(time: 10, unit: 'SECONDS')
+                                        intento++
+                                    }
+                                }
+                            }
+                            bat '''
                                 set PYTHONPATH=.
                                 py -m pytest --junitxml=result-rest.xml test\\rest
                             '''
