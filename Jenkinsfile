@@ -12,43 +12,124 @@ pipeline {
             }
         }
         
-        stage('Jenkins1 Build'){ // 5o ejercicio de Jenkins1, crear una etapa build (no necesaria por ser python)
-            steps {
-                echo 'Estoy construyendo' 
-            }
-        }
-        
         stage('Pruebas') {
-            parallel { // 3er ejecicio de Jenkins2, hacer paralelas las etapas de pruebas unitarias y de servicio   
+            parallel { // 3er ejecicio de Jenkins2, hacer paralelas las etapas de pruebas unitarias y de servicio
+            // Añadidas posteriormente para el cp 1.2 pruebas de analisis de codigo estatico y seguridad    
                 stage('Jenkins2 Unit'){ // 1er ejercicio de Jenkins2, crear una etapa con la ejecucion de pruebas unitarias
                     steps {
-                        bat '''
-                            set PYTHONPATH=.
-                            py -m pytest --junitxml=result-unit.xml test\\unit
-                        '''
+                        script {
+                            catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
+                            // Como solo debemos ejecutar las pruebas unitarias una vez, vamos a ejecutar las pruebas e ir recolectando cobertura
+                                def res_unit = bat (script: // Siempre se marcará en verde la etapa, sea cual sea el resultado de las pruebas
+                                    '''
+                                        set PYTHONPATH=.
+                                        py -m coverage run --branch --source=app --omit=app\\__init__.py,app\\api.py -m pytest --junitxml=result-unit.xml test\\unit
+                                    ''', returnStatus: true)
+                                junit 'result-unit.xml'
+                            }
+                        }
                     }
                 }
                 
-                 stage('Jenkins2 Service'){ // 2o ejercicio de Jenkins2, crear una etapa con la ejecución de pruebas de servicio
+                stage('Jenkins2 Service'){ // 2o ejercicio de Jenkins2, crear una etapa con la ejecucion de pruebas de servicio
                     steps {
-                        catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
-                           bat '''
-                                curl -sO https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.0/wiremock-standalone-3.13.0.jar
-                                set FLASK_APP=app\\api.py
-                                start py -m flask run
-                                start java -jar wiremock-standalone-3.13.0.jar --port 9090 --root-dir test\\wiremock
-                                set PYTHONPATH=.
-                                py -m pytest --junitxml=result-rest.xml test\\rest
-                            '''
+                        script{
+                            catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
+                                bat'''
+                                    set FLASK_APP=app\\api.py
+                                    start py -m flask run
+                                    start java -jar C:\\Users\\Jesus\\helloworld\\1.1\\wiremock-standalone-3.13.0.jar --port 9090 --root-dir test\\wiremock
+                                '''
+                                // Comprobamos que estan escuchando tanto flask como wiremock, si no, esperamos
+                                def url_flask = 'http://127.0.0.1:5000'
+                                def url_wiremock = 'http://127.0.0.1:9090'
+                                def intento = 1
+                                def intentos_max = 10
+                                while ( intento <= intentos_max) {
+                                    try {
+                                        bat(script: "curl -s -o nul ${url_flask}")
+                                        bat(script: "curl -s -o nul ${url_wiremock}")
+                                        intento = 11
+                                    }
+                                    catch (e) {
+                                        sleep(time: 10, unit: 'SECONDS')
+                                        intento++
+                                    }
+                                }
+                                
+                                def res_service = bat (script: // Siempre se marcará en verde la etapa, sea cual sea el resultado de las pruebas
+                                    '''
+                                        set PYTHONPATH=.
+                                        py -m pytest --junitxml=result-rest.xml test\\rest
+                                    ''',returnStatus: true)
+                                    
+                                //Cerramos el proceso de flask, que es el que escucha en el puerto 5000 para despues usarlo en las pruebas de rendimiento
+                                bat 'for /f "tokens=5" %%a in (\'netstat -aon ^| findstr :5000 ^| findstr LISTENING\') do taskkill /F /PID %%a'
+                                junit 'result-rest.xml'
+                            }
                         }
                     }
-                 }
+                }
+                 
+                stage('Static'){ // Creacion de la etapa con la ejecucion de pruebas de analisis de codigo estatico, usando flake8
+                    steps {
+                        catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
+                            bat 'py -m flake8 --format=pylint --exit-zero app >flake8.out'
+                            recordIssues enabledForFailure: true, tools: [flake8(name: 'Flake8', pattern: 'flake8.out')],
+                                qualityGates: [
+                                    [threshold: 8, type: 'TOTAL', unstable: true],
+                                    [threshold: 10, type: 'TOTAL', unstable: false]
+                                ]
+                        }
+                    }
+                }
+                
+                stage('Security test'){ // Creacion de la etapa con la ejecucion de pruebas de seguridad, usando bandit
+                    steps {
+                        catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
+                            bat 'py -m bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"'
+                            recordIssues enabledForFailure: true, tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')],
+                                qualityGates: [
+                                    [threshold: 2, type: 'TOTAL', unstable: true],
+                                    [threshold: 4, type: 'TOTAL', unstable: false]
+                                ]
+                        }
+                    }
+                }
             }
         }
         
-        stage ('Resultados') { // 3er ejercicio de Jenkins2, crear una última etapa para conectar con JUnit
+        stage('Coverage'){ // Creacion de la etapa con la ejecucion del reporte de pruebas de cobertura, usando coverage, y pintado del reporte
             steps {
-                junit 'result-*.xml'
+                catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
+                    // Solo tenemos que generar el fichero xml, porque los datos de cobertura los recogimos mientras hacíamos pruebas unitarias
+                    bat '''
+                        py -m coverage xml
+                    '''
+                    recordCoverage (enabledForFailure: true, tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']],
+                        qualityGates: [
+                            [metric: 'LINE', threshold: 85.0, criticality: 'FAILURE'],
+                            [metric: 'LINE', threshold: 95.0, criticality: 'UNSTABLE'],
+                            [metric: 'BRANCH', threshold: 80.0, criticality: 'FAILURE'],
+                            [metric: 'BRANCH', threshold: 90.0, criticality: 'UNSTABLE']
+                        ]
+                    )
+                }
+            }
+        }
+        
+        stage('Performance'){ // Creacion de la etapa con la ejecucion de pruebas de carga, usando jmeter
+            steps {
+                catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
+                    bat '''
+                        set FLASK_APP=app\\api.py
+                        start py -m flask run
+                    '''
+                    bat 'C:\\Users\\Jesus\\helloworld\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -f -l flask.jtl'
+                    perfReport sourceDataFiles: 'flask.jtl'
+                    // Cerramos el proceso de flask, que es el que escucha en el puerto 5000
+                    bat 'for /f "tokens=5" %%a in (\'netstat -aon ^| findstr :5000 ^| findstr LISTENING\') do taskkill /F /PID %%a'
+                }
             }
         }
     }
