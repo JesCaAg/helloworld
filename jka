@@ -5,7 +5,6 @@ pipeline {
         stage('Jenkins1') {
             agent { label 'git && win'} // Seleccionamos un agente con git y Windows
             steps {
-                deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
                 echo 'Primer echo' // 1er ejercicio de Jenkins 1, hacer un echo
                 git 'https://github.com/JesCaAg/helloworld.git' // 2o ejercicio de Jenkins 1, traer el repo de codigo
                 bat 'dir' // 3o ejercicio de Jenkins 1, hacer un dir para verificar la descarga del repositorio
@@ -14,11 +13,10 @@ pipeline {
                     whoami
                     hostname
                 '''
-                //stash includes: '**/*', name: 'repositorio' // Guardamos el repositorio para usarlo en otras etapas
-            }
+			}
 			post {
 				always {
-				cleanWs()
+					cleanWs()
 				}
 			}
         }
@@ -29,8 +27,6 @@ pipeline {
                 stage('Jenkins2 Unit'){ // 1er ejercicio de Jenkins2, crear una etapa con la ejecucion de pruebas unitarias
                     agent { label 'testunit && win'} // Seleccionamos un agente dedicado a tests unitarios con Windows
                     steps {
-                        //deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
-                        //unstash 'repositorio' // Retomamos el repositorio que descargamos en la etapa Jenkins1
                         script {
                             catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
                             // Como solo debemos ejecutar las pruebas unitarias una vez, vamos a ejecutar las pruebas e ir recolectando cobertura
@@ -56,11 +52,9 @@ pipeline {
 					}
                 }
                 
-                 stage('Jenkins2 Service'){ // 2o ejercicio de Jenkins2, crear una etapa con la ejecución de pruebas de servicio
+				stage('Jenkins2 Service'){ // 2o ejercicio de Jenkins2, crear una etapa con la ejecución de pruebas de servicio
                     agent { label 'testrest && win'} // Utilizamos un agente dedicado a test rest con Windows
                     steps {
-                        //deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
-                        //unstash 'repositorio' // Retomamos el repositorio que descargamos en la primera etapa
                         script{
                             catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
                                 bat'''
@@ -91,35 +85,35 @@ pipeline {
                                         py -m pytest --junitxml=result-rest.xml test\\rest
                                     ''',returnStatus: true)
                                     
-                                //Cerramos el proceso de flask, que es el que escucha en el puerto 5000 para despues usarlo en las pruebas de rendimiento
-				bat '''
-                    			@echo off
-                    			setlocal enabledelayedexpansion
-                    			set "PIDS="
-                    			for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
-                        			echo !PIDS! | find "%%a" >nul
-                        			if errorlevel 1 (
-                            				echo Terminando proceso con PID %%a
+                                // Cerramos el proceso de flask, que es el que escucha en el puerto 5000
+								bat '''
+									@echo off
+									setlocal enabledelayedexpansion
+									set "PIDS="
+									for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
+										echo !PIDS! | find "%%a" >nul
+										if errorlevel 1 (
                             				taskkill /F /PID %%a
                             				set "PIDS=!PIDS! %%a"
-                        			)
-                    			)
-                    			endlocal
-                		'''
-				bat '''
-                    			@echo off
-                    			setlocal enabledelayedexpansion
-                    			set "PIDS="
-                    			for /f "tokens=5" %%a in ('netstat -aon ^| findstr :9090 ^| findstr LISTENING') do (
-                        			echo !PIDS! | find "%%a" >nul
-                        			if errorlevel 1 (
-                            				echo Terminando proceso con PID %%a
-                            				taskkill /F /PID %%a
-                            				set "PIDS=!PIDS! %%a"
-                        			)
-                    			)
-                    			endlocal
-                		'''
+										)
+									)
+									endlocal
+								'''
+								
+								//Cerramos el proceso de wiremock, que es el que escucha en el puerto 9090
+								bat '''
+									@echo off
+									setlocal enabledelayedexpansion
+									set "PIDS="
+									for /f "tokens=5" %%a in ('netstat -aon ^| findstr :9090 ^| findstr LISTENING') do (
+										echo !PIDS! | find "%%a" >nul
+										if errorlevel 1 (
+											taskkill /F /PID %%a
+											set "PIDS=!PIDS! %%a"
+										)
+									)
+									endlocal
+								'''
                                 junit 'result-rest.xml'
                             }
                         }
@@ -139,7 +133,6 @@ pipeline {
                 stage('Static'){ // Creacion de la etapa con la ejecucion de pruebas de analisis de codigo estatico, usando flake8
                     agent { label 'teststatic && win'} // Utilizamos un agente dedicado a test de codigo estatico con Windows
                     steps {
-                        //deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
                         catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
                             bat 'py -m flake8 --format=pylint --exit-zero app >flake8.out'
                             recordIssues enabledForFailure: true, tools: [flake8(name: 'Flake8', pattern: 'flake8.out')],
@@ -164,7 +157,6 @@ pipeline {
                 stage('Security test'){ // Creacion de la etapa con la ejecucion de pruebas de seguridad, usando bandit
                     agent { label 'testsecurity && win'} // Utilizamos un agente dedicado a test de seguridad con Windows
                     steps {
-                        //deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
                         catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
                             bat 'py -m bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"'
                             recordIssues enabledForFailure: true, tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')],
@@ -192,7 +184,6 @@ pipeline {
         stage('Coverage'){ // Creacion de la etapa con la ejecucion del reporte de pruebas de cobertura, usando coverage, y pintado del reporte
             agent { label 'testcoverage && win'} // Utilizamos un agente dedicado a test de cobertura con Windows
             steps {
-                //deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
                 unstash 'coverage'
                 catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
                     // Solo tenemos que generar el fichero xml, porque los datos de cobertura los recogimos mientras hacíamos pruebas unitarias
@@ -224,7 +215,6 @@ pipeline {
         stage('Performance'){ // Creacion de la etapa con la ejecucion de pruebas de carga, usando jmeter
             agent { label 'testperformance && win'} // Utilizamos un agente dedicado a test de rendimiento con Windows
             steps {
-                //deleteDir() // Eliminamos lo que hubiera en el workspace de ejecuciones anteriores
                 catchError(buildResult:'UNSTABLE', stageResult:'FAILURE') {
                     bat '''
                         set FLASK_APP=app\\api.py
@@ -247,8 +237,21 @@ pipeline {
                     }
                     bat 'C:\\Users\\Jesus\\helloworld\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -f -l flask.jtl'
                     perfReport sourceDataFiles: 'flask.jtl'
-                    // Cerramos el proceso de flask, que es el que escucha en el puerto 5000
-                    bat 'for /f "tokens=5" %%a in (\'netstat -aon ^| findstr :5000 ^| findstr LISTENING\') do taskkill /F /PID %%a'
+					//Cerramos el proceso de flask, que es el que escucha en el puerto 5000
+					bat '''
+                    	@echo off
+                    	setlocal enabledelayedexpansion
+                    	set "PIDS="
+                    	for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
+                        	echo !PIDS! | find "%%a" >nul
+                        	if errorlevel 1 (
+                        		taskkill /F /PID %%a
+                        		set "PIDS=!PIDS! %%a"
+                        	)
+                    	)
+                    	endlocal
+                	'''
+
                     echo WORKSPACE
                     bat '''
                         whoami
