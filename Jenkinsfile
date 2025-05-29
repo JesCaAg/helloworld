@@ -125,6 +125,19 @@ pipeline {
                         set FLASK_APP=app\\api.py
                         start py -m flask run
                     '''
+                    def url_flask = 'http://127.0.0.1:5000'
+                    def intento = 1
+                    def intentos_max = 10
+                    while ( intento <= intentos_max) {
+						try {
+							bat(script: "curl -s -o nul ${url_flask}")
+							intento = 11
+						}
+						catch (e) {
+							sleep(time: 10, unit: 'SECONDS')
+							intento++
+						}
+					}
                     bat 'C:\\Users\\Jesus\\helloworld\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -f -l flask.jtl'
                     perfReport sourceDataFiles: 'flask.jtl'
                     // Cerramos el proceso de flask, que es el que escucha en el puerto 5000
