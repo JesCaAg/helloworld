@@ -16,6 +16,11 @@ pipeline {
                 '''
                 //stash includes: '**/*', name: 'repositorio' // Guardamos el repositorio para usarlo en otras etapas
             }
+			post {
+				always {
+				cleanWs()
+				}
+			}
         }
         
         stage('Pruebas') {
@@ -44,6 +49,11 @@ pipeline {
                             hostname
                         '''
                     }
+					post {
+						always {
+							cleanWs()
+						}
+					}
                 }
                 
                  stage('Jenkins2 Service'){ // 2o ejercicio de Jenkins2, crear una etapa con la ejecución de pruebas de servicio
@@ -92,7 +102,12 @@ pipeline {
                             hostname
                         '''
                     }
-                 }
+					post {
+						always {
+							cleanWs()
+						}
+					}
+				}
                  
                 stage('Static'){ // Creacion de la etapa con la ejecucion de pruebas de analisis de codigo estatico, usando flake8
                     agent { label 'teststatic && win'} // Utilizamos un agente dedicado a test de codigo estatico con Windows
@@ -112,6 +127,11 @@ pipeline {
                             hostname
                         '''
                     }
+					post {
+						always {
+							cleanWs()
+						}
+					}
                 }
                 
                 stage('Security test'){ // Creacion de la etapa con la ejecucion de pruebas de seguridad, usando bandit
@@ -133,6 +153,11 @@ pipeline {
                             hostname
                         '''
                     }
+					post {
+						always {
+							cleanWs()
+						}
+					}
                 }
             }
         }
@@ -162,6 +187,11 @@ pipeline {
                     hostname
                 '''
             }
+			post {
+				always {
+					cleanWs()
+				}
+			}
         }
         
         stage('Performance'){ // Creacion de la etapa con la ejecucion de pruebas de carga, usando jmeter
@@ -199,13 +229,11 @@ pipeline {
                     '''
                 }
             }
-        }
-    }
-    post { // Una vez finalizadas las etapas, con cualquier resultado, borramos los workspaces para tenerlos limpios para otras ejecuciones
-        always {
-            node('ag1') {cleanWs()}
-            node('ag2') {cleanWs()}
-            node('pr')	{cleanWs()}
+			post {
+				always {
+					cleanWs()
+				}
+			}
         }
     }
 }
