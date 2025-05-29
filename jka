@@ -93,6 +93,7 @@ pipeline {
                                     
                                 //Cerramos el proceso de flask, que es el que escucha en el puerto 5000 para despues usarlo en las pruebas de rendimiento
                                 bat 'for /f "tokens=5" %%a in (\'netstat -aon ^| findstr :5000 ^| findstr LISTENING\') do taskkill /F /PID %%a'
+				bat 'for /f "tokens=5" %%a in (\'netstat -aon ^| findstr :9090 ^| findstr LISTENING\') do taskkill /F /PID %%a'
                                 junit 'result-rest.xml'
                             }
                         }
