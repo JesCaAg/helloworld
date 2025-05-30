@@ -64,8 +64,34 @@ pipeline {
                                         py -m pytest --junitxml=result-rest.xml test\\rest
                                     ''',returnStatus: true)
                                     
-                                //Cerramos el proceso de flask, que es el que escucha en el puerto 5000 para despues usarlo en las pruebas de rendimiento
-                                bat 'for /f "tokens=5" %%a in (\'netstat -aon ^| findstr :5000 ^| findstr LISTENING\') do taskkill /F /PID %%a'
+                                //Cerramos el proceso de flask, que es el que escucha en el puerto 5000
+                                bat '''
+                                	@echo off
+                                	setlocal enabledelayedexpansion
+                                	set "PIDS="
+                                	for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
+                                    	echo !PIDS! | find "%%a" >nul
+                                    	if errorlevel 1 (
+                                    		taskkill /F /PID %%a
+                                    		set "PIDS=!PIDS! %%a"
+                                    	)
+                                	)
+                                	endlocal
+                            	'''
+                            	//Cerramos el proceso de wiremock, que es el que escucha en el puerto 9090
+                            	bat '''
+                                	@echo off
+                                	setlocal enabledelayedexpansion
+                                	set "PIDS="
+                                	for /f "tokens=5" %%a in ('netstat -aon ^| findstr :9090 ^| findstr LISTENING') do (
+                                    	echo !PIDS! | find "%%a" >nul
+                                    	if errorlevel 1 (
+                                    		taskkill /F /PID %%a
+                                    		set "PIDS=!PIDS! %%a"
+                                    	)
+                                	)
+                                	endlocal
+                            	'''
                                 junit 'result-rest.xml'
                             }
                         }
@@ -144,7 +170,19 @@ pipeline {
                     bat 'C:\\Users\\Jesus\\helloworld\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -f -l flask.jtl'
                     perfReport sourceDataFiles: 'flask.jtl'
                     // Cerramos el proceso de flask, que es el que escucha en el puerto 5000
-                    bat 'for /f "tokens=5" %%a in (\'netstat -aon ^| findstr :5000 ^| findstr LISTENING\') do taskkill /F /PID %%a'
+                    bat '''
+                    	@echo off
+                    	setlocal enabledelayedexpansion
+                    	set "PIDS="
+                    	for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
+                        	echo !PIDS! | find "%%a" >nul
+                        	if errorlevel 1 (
+                        		taskkill /F /PID %%a
+                        		set "PIDS=!PIDS! %%a"
+                        	)
+                    	)
+                    	endlocal
+                	'''
                 }
             }
         }
