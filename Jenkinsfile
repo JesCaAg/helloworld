@@ -7,7 +7,7 @@ pipeline {
             steps {
                 deleteDir() // Eliminamos lo que hubiera en el workspace
                 echo 'Primer echo' // 1er ejercicio de Jenkins 1, hacer un echo
-                git 'https://github.com/JesCaAg/helloworld.git' // 2o ejercicio de Jenkins 1, traer el repo de codigo
+                git branch: 'feature_fix_coverage', url: git 'https://github.com/JesCaAg/helloworld.git' // 2o ejercicio de Jenkins 1, traer el repo de codigo, en este caso de la rama feature_fix_coverage 
                 bat 'dir' // 3o ejercicio de Jenkins 1, hacer un dir para verificar la descarga del repositorio
                 echo WORKSPACE // 4o ejercicio de Jenkins 1, verificar el workspace
             }
